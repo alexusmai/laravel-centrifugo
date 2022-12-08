@@ -1,0 +1,46 @@
+{
+  "name": "alexusmai/laravel-centrifugo",
+  "type": "library",
+  "description": "Centrifugo broadcaster for laravel 9 and Centrifugo 4",
+  "keywords": [
+    "broadcaster",
+    "laravel",
+    "centrifugo"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Denis Zakharenko",
+      "email": "amx-serv@ya.ru",
+      "role": "Creator"
+    },
+    {
+      "name": "Aleksandr Manekin",
+      "email": "alexusmai@gmail.com",
+      "role": "Developer"
+    }
+  ],
+  "homepage": "https://github.com/alexusmai/laravel-centrifugo",
+  "require": {
+    "php": "^8.0",
+    "laravel/framework": "^9.0",
+    "guzzlehttp/guzzle": "^7.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "alexusmai\\Centrifugo\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Alexusmai\\Centrifugo\\CentrifugoServiceProvider"
+      ]
+    }
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
