@@ -295,7 +295,7 @@ class Centrifugo implements CentrifugoInterface
     public function generatePrivateChannelToken(string $client, string $channel, int $exp = 0, array $info = []): string
     {
         $header = ['typ' => 'JWT', 'alg' => 'HS256'];
-        $payload = ['channel' => $channel, 'client' => $client];
+        $payload = ['channel' => $channel, 'sub' => $client];
         if (!empty($info)) {
             $payload['info'] = $info;
         }
