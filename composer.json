@@ -28,7 +28,7 @@
   },
   "autoload": {
     "psr-4": {
-      "alexusmai\\Centrifugo\\": "src/"
+      "Alexusmai\\Centrifugo\\": "src/"
     }
   },
   "extra": {
