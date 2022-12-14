@@ -23,6 +23,7 @@
   "homepage": "https://github.com/alexusmai/laravel-centrifugo",
   "require": {
     "php": "^8.0",
+    "ext-json": "*",
     "laravel/framework": "^9.0",
     "guzzlehttp/guzzle": "^7.0"
   },

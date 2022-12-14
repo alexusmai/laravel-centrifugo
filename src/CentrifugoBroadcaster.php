@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Alexusmai\Centrifugo;
 
 use Exception;
-use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpKernel\Exception\HttpException;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class CentrifugoBroadcaster extends Broadcaster
 {
@@ -23,7 +23,7 @@ class CentrifugoBroadcaster extends Broadcaster
     /**
      * Create a new broadcaster instance.
      *
-     * @param Centrifugo $centrifugo
+     * @param  Centrifugo  $centrifugo
      */
     public function __construct(Centrifugo $centrifugo)
     {
@@ -33,68 +33,90 @@ class CentrifugoBroadcaster extends Broadcaster
     /**
      * Authenticate the incoming request for a given channel.
      *
-     * @param Request $request
+     * @param  Request  $request
      *
      * @return mixed
      */
-    public function auth($request)
+    public function auth($request): mixed
     {
-        if ($request->user()) {
-            $client = $this->getClientFromRequest($request);
-            $channels = $this->getChannelsFromRequest($request);
+        $channelName = $this->normalizeChannelName($request->channel);
 
-            $response = [];
-            $privateResponse = [];
-            foreach ($channels as $channel) {
-                $channelName = $this->getChannelName($channel);
-
-                try {
-                    $is_access_granted = $this->verifyUserCanAccessChannel($request, $channelName);
-                } catch (HttpException $e) {
-                    $is_access_granted = false;
-                }
-
-                if ($private = $this->isPrivateChannel($channel)) {
-                    $privateResponse['channels'][] = $this->makeResponseForPrivateClient($is_access_granted, $channel, $client);
-                } else {
-                    $response[$channel] = $this->makeResponseForClient($is_access_granted, $client);
-                }
-            }
-
-            return response($private ? $privateResponse : $response);
-        } else {
-            throw new HttpException(401);
+        if (empty($channelName) ||
+            ($this->isGuardedChannel($request->channel) &&
+                !$this->retrieveUser($request, $channelName))) {
+            throw new AccessDeniedHttpException;
         }
+
+        return parent::verifyUserCanAccessChannel(
+            $request, $channelName
+        );
     }
 
     /**
      * Return the valid authentication response.
      *
-     * @param Request $request
-     * @param mixed                    $result
+     * @param  Request  $request
+     * @param  mixed  $result
      *
      * @return mixed
      */
-    public function validAuthenticationResponse($request, $result)
+    public function validAuthenticationResponse($request, $result): mixed
     {
-        return $result;
+        $channelName = $this->normalizeChannelName($request->channel);
+        $user = $this->retrieveUser($request, $channelName);
+
+        return json_encode([
+            'data' => [
+                'channel' => $request->channel,
+                'token'   => $this->centrifugo->generatePrivateChannelToken(
+                    (string) $user->id,
+                    $request->channel,
+                    0,
+                    $request->get('info', [])
+                ),
+            ]
+        ]);
     }
 
     /**
      * Broadcast the given event.
      *
-     * @param array  $channels
-     * @param string $event
-     * @param array  $payload
+     * @param  array  $channels
+     * @param  string  $event
+     * @param  array  $payload
      *
      * @return void
      */
-    public function broadcast(array $channels, $event, array $payload = [])
+    public function broadcast(array $channels, $event, array $payload = []): void
     {
+        if (empty($channels)) {
+            return;
+        }
+
         $payload['event'] = $event;
-        $channels = array_map(function ($channel) {
-            return str_replace('private-', '$', (string) $channel);
-        }, array_values($channels));
+
+        if (config('broadcasting.connections.centrifugo.use_namespace')) {
+            $channels = array_map(function ($channel) {
+
+                if (Str::startsWith($channel, 'private-')) {
+                    return str_replace(
+                        'private-',
+                        config('broadcasting.connections.centrifugo.private_namespace'),
+                        (string) $channel
+                    );
+                }
+
+                if (Str::startsWith($channel, 'presence-')) {
+                    return str_replace(
+                        'presence-',
+                        config('broadcasting.connections.centrifugo.presence_namespace'),
+                        (string) $channel
+                    );
+                }
+
+                return config('broadcasting.connections.centrifugo.default_namespace').$channel;
+            }, array_values($channels));
+        }
 
         $response = $this->centrifugo->broadcast($this->formatChannels($channels), $payload);
 
@@ -108,97 +130,51 @@ class CentrifugoBroadcaster extends Broadcaster
     }
 
     /**
-     * Get client from request.
-     *
-     * @param Request $request
-     *
-     * @return string
-     */
-    private function getClientFromRequest($request): string
-    {
-        return $request->get('client', '');
-    }
-
-    /**
-     * Get channels from request.
-     *
-     * @param Request $request
-     *
-     * @return array
-     */
-    private function getChannelsFromRequest($request): array
-    {
-        $channels = $request->get('channels', []);
-
-        return is_array($channels) ? $channels : [$channels];
-    }
-
-    /**
-     * Get channel name without $ symbol (if present).
-     *
-     * @param string $channel
-     *
-     * @return string
-     */
-    private function getChannelName(string $channel): string
-    {
-        return $this->isPrivateChannel($channel) ? substr($channel, 1) : $channel;
-    }
-
-    /**
-     * Check channel name by $ symbol.
-     *
-     * @param string $channel
+     * @param $channel
      *
      * @return bool
      */
-    private function isPrivateChannel(string $channel): bool
+    protected function isGuardedChannel($channel): bool
     {
-        return substr($channel, 0, 1) === '$';
+        if (config('broadcasting.connections.centrifugo.use_namespace')) {
+            return Str::startsWith($channel, [
+                config('broadcasting.connections.centrifugo.private_namespace'),
+                config('broadcasting.connections.centrifugo.presence_namespace')
+            ]);
+        }
+
+        return Str::startsWith($channel, ['private-', 'presence-']);
     }
 
     /**
-     * Make response for client, based on access rights.
+     * @param $channel
      *
-     * @param bool   $access_granted
-     * @param string $client
-     *
-     * @return array
+     * @return string
      */
-    private function makeResponseForClient(bool $access_granted, string $client): array
+    protected function normalizeChannelName($channel): string
     {
-        $info = [];
+        if (config('broadcasting.connections.centrifugo.use_namespace')) {
+            $namespaces = [
+                config('broadcasting.connections.centrifugo.default_namespace'),
+                config('broadcasting.connections.centrifugo.private_namespace'),
+                config('broadcasting.connections.centrifugo.presence_namespace')
+            ];
 
-        return $access_granted ? [
-            'sign' => $this->centrifugo->generateConnectionToken($client, 0, $info),
-            'info' => $info,
-        ] : [
-            'status' => 403,
-        ];
-    }
+            foreach ($namespaces as $prefix) {
+                if (Str::startsWith($channel, $prefix)) {
+                    return Str::replaceFirst($prefix, '', $channel);
+                }
+            }
 
-    /**
-     * Make response for client, based on access rights of private channel.
-     *
-     * @param  bool  $access_granted
-     * @param  string  $channel
-     * @param  string  $client
-     *
-     * @return array
-     * @throws GuzzleException
-     */
-    private function makeResponseForPrivateClient(bool $access_granted, string $channel, string $client): array
-    {
-        $info = [];
+            return $channel;
+        }
 
-        return $access_granted ? [
+        foreach (['private-encrypted-', 'private-', 'presence-'] as $prefix) {
+            if (Str::startsWith($channel, $prefix)) {
+                return Str::replaceFirst($prefix, '', $channel);
+            }
+        }
 
-            'channel' => $channel,
-            'token'   => $this->centrifugo->generatePrivateChannelToken($client, $channel, 0, $info),
-            'info'    => $this->centrifugo->info(),
-
-        ] : [
-            'status' => 403,
-        ];
+        return $channel;
     }
 }

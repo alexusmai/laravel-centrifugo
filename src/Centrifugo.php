@@ -71,7 +71,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function publish(string $channel, array $data, bool $skipHistory = false)
+    public function publish(string $channel, array $data, bool $skipHistory = false): mixed
     {
         return $this->send('publish', [
             'channel'      => $channel,
@@ -90,7 +90,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function broadcast(array $channels, array $data, bool $skipHistory = false)
+    public function broadcast(array $channels, array $data, bool $skipHistory = false): mixed
     {
         $params = [
             'channels'     => $channels,
@@ -109,7 +109,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function presence(string $channel)
+    public function presence(string $channel): mixed
     {
         return $this->send('presence', ['channel' => $channel]);
     }
@@ -122,7 +122,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function presenceStats(string $channel)
+    public function presenceStats(string $channel): mixed
     {
         return $this->send('presence_stats', ['channel' => $channel]);
     }
@@ -138,7 +138,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function history(string $channel, int $limit = 0, array $since = [], bool $reverse = false)
+    public function history(string $channel, int $limit = 0, array $since = [], bool $reverse = false): mixed
     {
         $params = [
             'channel' => $channel,
@@ -160,7 +160,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function historyRemove(string $channel)
+    public function historyRemove(string $channel): mixed
     {
         return $this->send('history_remove', [
             'channel' => $channel,
@@ -177,7 +177,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function subscribe(string $channel, string $user, string $client = '')
+    public function subscribe(string $channel, string $user, string $client = ''): mixed
     {
         return $this->send('subscribe', [
             'channel' => $channel,
@@ -196,7 +196,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function unsubscribe(string $channel, string $user, string $client = '')
+    public function unsubscribe(string $channel, string $user, string $client = ''): mixed
     {
         return $this->send('unsubscribe', [
             'channel' => $channel,
@@ -213,7 +213,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function disconnect(string $user_id, string $client = '')
+    public function disconnect(string $user_id, string $client = ''): mixed
     {
         return $this->send('disconnect', [
             'user'   => $user_id,
@@ -229,7 +229,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function channels(string $pattern = '')
+    public function channels(string $pattern = ''): mixed
     {
         return $this->send('channels', ['pattern' => $pattern]);
     }
@@ -240,7 +240,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    public function info()
+    public function info(): mixed
     {
         return $this->send('info');
     }
@@ -272,14 +272,8 @@ class Centrifugo implements CentrifugoInterface
         if ($exp) {
             $payload['exp'] = $exp;
         }
-        $segments = [];
-        $segments[] = $this->urlsafeB64Encode(json_encode($header));
-        $segments[] = $this->urlsafeB64Encode(json_encode($payload));
-        $signing_input = implode('.', $segments);
-        $signature = $this->sign($signing_input, $this->getSecret());
-        $segments[] = $this->urlsafeB64Encode($signature);
 
-        return implode('.', $segments);
+        return $this->encode($header, $payload);
     }
 
     /**
@@ -292,8 +286,12 @@ class Centrifugo implements CentrifugoInterface
      *
      * @return string
      */
-    public function generatePrivateChannelToken(string $client, string $channel, int $exp = 0, array $info = []): string
-    {
+    public function generatePrivateChannelToken(
+        string $client,
+        string $channel,
+        int $exp = 0,
+        array $info = []
+    ): string {
         $header = ['typ' => 'JWT', 'alg' => 'HS256'];
         $payload = ['channel' => $channel, 'sub' => $client];
         if (!empty($info)) {
@@ -302,6 +300,20 @@ class Centrifugo implements CentrifugoInterface
         if ($exp) {
             $payload['exp'] = $exp;
         }
+
+        return $this->encode($header, $payload);
+    }
+
+    /**
+     * Encode
+     *
+     * @param  array  $header
+     * @param  array  $payload
+     *
+     * @return string
+     */
+    protected function encode(array $header, array $payload): string
+    {
         $segments = [];
         $segments[] = $this->urlsafeB64Encode(json_encode($header));
         $segments[] = $this->urlsafeB64Encode(json_encode($payload));
@@ -341,7 +353,7 @@ class Centrifugo implements CentrifugoInterface
      * @return mixed
      * @throws GuzzleException
      */
-    protected function send(string $method, array $params = [])
+    protected function send(string $method, array $params = []): mixed
     {
         $json = json_encode(['method' => $method, 'params' => $params]);
 
