@@ -13,15 +13,8 @@ class Centrifugo implements CentrifugoInterface
 {
     const API_PATH = '/api';
 
-    /**
-     * @var HttpClient
-     */
-    protected $httpClient;
-
-    /**
-     * @var array
-     */
-    protected $config;
+    protected HttpClient $httpClient;
+    protected array $config;
 
     /**
      * Create a new Centrifugo instance.
@@ -209,6 +202,7 @@ class Centrifugo implements CentrifugoInterface
      * Disconnect user by its ID.
      *
      * @param  string  $user_id
+     * @param  string  $client
      *
      * @return mixed
      * @throws GuzzleException
@@ -417,7 +411,7 @@ class Centrifugo implements CentrifugoInterface
      *
      * @return string
      */
-    private function urlsafeB64Encode($input): string
+    private function urlsafeB64Encode(string $input): string
     {
         return str_replace('=', '', strtr(base64_encode($input), '+/', '-_'));
     }
@@ -430,7 +424,7 @@ class Centrifugo implements CentrifugoInterface
      *
      * @return string
      */
-    private function sign($msg, $key): string
+    private function sign(string $msg, string $key): string
     {
         return hash_hmac('sha256', $msg, $key, true);
     }

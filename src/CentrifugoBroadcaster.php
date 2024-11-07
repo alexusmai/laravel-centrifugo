@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Alexusmai\Centrifugo;
 
 use Exception;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Http\Request;
@@ -86,6 +87,7 @@ class CentrifugoBroadcaster extends Broadcaster
      * @param  array  $payload
      *
      * @return void
+     * @throws GuzzleException
      */
     public function broadcast(array $channels, $event, array $payload = []): void
     {
